@@ -910,6 +910,20 @@ export namespace Config {
       terminal_title_toggle: z.string().optional().default("none").describe("Toggle terminal title"),
       tips_toggle: z.string().optional().default("<leader>h").describe("Toggle tips on home screen"),
       display_thinking: z.string().optional().default("none").describe("Toggle thinking blocks visibility"),
+      tab_new: z.string().optional().default("<leader>T").describe("Open a new tab"),
+      tab_close: z.string().optional().default("<leader>w").describe("Close current tab"),
+      tab_next: z.string().optional().default("<leader>]").describe("Switch to next tab"),
+      tab_prev: z.string().optional().default("<leader>[").describe("Switch to previous tab"),
+      tab_bar_toggle: z.string().optional().default("none").describe("Toggle tab bar visibility"),
+      tab_1: z.string().optional().default("alt+1").describe("Switch to tab 1"),
+      tab_2: z.string().optional().default("alt+2").describe("Switch to tab 2"),
+      tab_3: z.string().optional().default("alt+3").describe("Switch to tab 3"),
+      tab_4: z.string().optional().default("alt+4").describe("Switch to tab 4"),
+      tab_5: z.string().optional().default("alt+5").describe("Switch to tab 5"),
+      tab_6: z.string().optional().default("alt+6").describe("Switch to tab 6"),
+      tab_7: z.string().optional().default("alt+7").describe("Switch to tab 7"),
+      tab_8: z.string().optional().default("alt+8").describe("Switch to tab 8"),
+      tab_9: z.string().optional().default("alt+9").describe("Switch to tab 9"),
     })
     .strict()
     .meta({

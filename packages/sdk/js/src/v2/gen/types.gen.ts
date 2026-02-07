@@ -1314,6 +1314,62 @@ export type KeybindsConfig = {
    * Toggle thinking blocks visibility
    */
   display_thinking?: string
+  /**
+   * Open a new tab
+   */
+  tab_new?: string
+  /**
+   * Close current tab
+   */
+  tab_close?: string
+  /**
+   * Switch to next tab
+   */
+  tab_next?: string
+  /**
+   * Switch to previous tab
+   */
+  tab_prev?: string
+  /**
+   * Toggle tab bar visibility
+   */
+  tab_bar_toggle?: string
+  /**
+   * Switch to tab 1
+   */
+  tab_1?: string
+  /**
+   * Switch to tab 2
+   */
+  tab_2?: string
+  /**
+   * Switch to tab 3
+   */
+  tab_3?: string
+  /**
+   * Switch to tab 4
+   */
+  tab_4?: string
+  /**
+   * Switch to tab 5
+   */
+  tab_5?: string
+  /**
+   * Switch to tab 6
+   */
+  tab_6?: string
+  /**
+   * Switch to tab 7
+   */
+  tab_7?: string
+  /**
+   * Switch to tab 8
+   */
+  tab_8?: string
+  /**
+   * Switch to tab 9
+   */
+  tab_9?: string
 }
 
 /**

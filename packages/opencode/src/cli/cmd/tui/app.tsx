@@ -2,10 +2,13 @@ import { render, useKeyboard, useRenderer, useTerminalDimensions } from "@opentu
 import { Clipboard } from "@tui/util/clipboard"
 import { TextAttributes } from "@opentui/core"
 import { RouteProvider, useRoute } from "@tui/context/route"
-import { Switch, Match, createEffect, untrack, ErrorBoundary, createSignal, onMount, batch, Show, on } from "solid-js"
+import { Switch, Match, createEffect, untrack, ErrorBoundary, createSignal, onMount, batch, Show, on, For } from "solid-js"
+import { TabProvider, useTab } from "@tui/context/tab"
+import { TabBar } from "@tui/component/tab-bar"
 import { Installation } from "@/installation"
 import { Flag } from "@/flag/flag"
 import { DialogProvider, useDialog } from "@tui/ui/dialog"
+import { DialogSelect } from "@tui/ui/dialog-select"
 import { DialogProvider as DialogProviderList } from "@tui/component/dialog-provider"
 import { SDKProvider, useSDK } from "@tui/context/sdk"
 import { SyncProvider, useSync } from "@tui/context/sync"
@@ -127,6 +130,7 @@ export function tui(input: {
                 <KVProvider>
                   <ToastProvider>
                     <RouteProvider>
+                      <TabProvider>
                       <SDKProvider
                         url={input.url}
                         directory={input.directory}
@@ -156,6 +160,7 @@ export function tui(input: {
                           </ThemeProvider>
                         </SyncProvider>
                       </SDKProvider>
+                      </TabProvider>
                     </RouteProvider>
                   </ToastProvider>
                 </KVProvider>
@@ -198,6 +203,7 @@ function App() {
   const sync = useSync()
   const exit = useExit()
   const promptRef = usePromptRef()
+  const tab = useTab()
 
   // Wire up console copy-to-clipboard via opentui's onCopySelection callback
   renderer.console.onCopySelection = async (text: string) => {
@@ -218,22 +224,108 @@ function App() {
   createEffect(() => {
     if (!terminalTitleEnabled() || Flag.OPENCODE_DISABLE_TERMINAL_TITLE) return
 
-    if (route.data.type === "home") {
-      renderer.setTerminalTitle("OpenCode")
+    const activeRoute = tab.activeTab().route
+    const tabCount = tab.tabs.length
+    const tabIdx = tab.tabs.findIndex((t) => t.id === tab.activeTabId) + 1
+
+    if (activeRoute.type === "home") {
+      if (tabCount > 1) {
+        renderer.setTerminalTitle(`OC | Tab ${tabIdx}/${tabCount}`)
+      } else {
+        renderer.setTerminalTitle("OpenCode")
+      }
       return
     }
 
-    if (route.data.type === "session") {
-      const session = sync.session.get(route.data.sessionID)
+    if (activeRoute.type === "session") {
+      const session = sync.session.get(activeRoute.sessionID)
       if (!session || SessionApi.isDefaultTitle(session.title)) {
-        renderer.setTerminalTitle("OpenCode")
+        if (tabCount > 1) {
+          renderer.setTerminalTitle(`OC | Tab ${tabIdx}/${tabCount}`)
+        } else {
+          renderer.setTerminalTitle("OpenCode")
+        }
         return
       }
 
-      // Truncate title to 40 chars max
       const title = session.title.length > 40 ? session.title.slice(0, 37) + "..." : session.title
-      renderer.setTerminalTitle(`OC | ${title}`)
+      if (tabCount > 1) {
+        renderer.setTerminalTitle(`OC | Tab ${tabIdx}/${tabCount} | ${title}`)
+      } else {
+        renderer.setTerminalTitle(`OC | ${title}`)
+      }
     }
+  })
+
+  // Sync route changes into active tab
+  createEffect(() => {
+    const currentRoute = route.data
+    const active = tab.activeTab()
+    if (
+      active.route.type !== currentRoute.type ||
+      (currentRoute.type === "session" &&
+        active.route.type === "session" &&
+        currentRoute.sessionID !== active.route.sessionID)
+    ) {
+      tab.updateTabRoute(active.id, currentRoute)
+    }
+  })
+
+  // Sync active tab's route back to route context when switching tabs
+  createEffect(() => {
+    const active = tab.activeTab()
+    const currentRoute = route.data
+    if (
+      active.route.type !== currentRoute.type ||
+      (active.route.type === "session" &&
+        currentRoute.type === "session" &&
+        active.route.sessionID !== currentRoute.sessionID)
+    ) {
+      route.navigate(active.route)
+    }
+  })
+
+  // Update tab labels from session titles
+  createEffect(() => {
+    for (const t of tab.tabs) {
+      if (t.route.type === "session") {
+        const session = sync.session.get(t.route.sessionID)
+        if (session && !SessionApi.isDefaultTitle(session.title)) {
+          const label = session.title.length > 30 ? session.title.slice(0, 27) + "..." : session.title
+          tab.updateTabLabel(t.id, label)
+        }
+      } else {
+        tab.updateTabLabel(t.id, "Home")
+      }
+    }
+  })
+
+  // Update tab status from session status
+  createEffect(() => {
+    for (const t of tab.tabs) {
+      if (t.route.type === "session") {
+        const sessionStatus = sync.data.session_status[t.route.sessionID]
+        const permissions = sync.data.permission[t.route.sessionID]
+        if (permissions && permissions.length > 0) {
+          tab.updateTabStatus(t.id, "attention")
+        } else if (sessionStatus?.type === "busy") {
+          tab.updateTabStatus(t.id, "busy")
+        } else {
+          tab.updateTabStatus(t.id, "idle")
+        }
+      } else {
+        tab.updateTabStatus(t.id, "idle")
+      }
+    }
+  })
+
+  // Restore tabs from KV when sync is ready
+  let tabsRestored = false
+  createEffect(() => {
+    if (tabsRestored || sync.status === "loading") return
+    tabsRestored = true
+    const sessionIds = sync.data.session.map((s) => s.id)
+    tab.restoreTabs(sessionIds)
   })
 
   const args = useArgs()
@@ -610,6 +702,111 @@ function App() {
         dialog.clear()
       },
     },
+    {
+      title: "New tab",
+      value: "tab.new",
+      keybind: "tab_new",
+      category: "Tabs",
+      slash: {
+        name: "tabnew",
+      },
+      onSelect: (dialog) => {
+        tab.openTab()
+        route.navigate({ type: "home" })
+        dialog.clear()
+      },
+    },
+    {
+      title: "Close tab",
+      value: "tab.close",
+      keybind: "tab_close",
+      category: "Tabs",
+      enabled: tab.tabs.length > 1,
+      onSelect: (dialog) => {
+        const closed = tab.closeTab()
+        if (closed) {
+          route.navigate(tab.activeTab().route)
+        }
+        dialog.clear()
+      },
+    },
+    {
+      title: "Next tab",
+      value: "tab.next",
+      keybind: "tab_next",
+      category: "Tabs",
+      hidden: true,
+      onSelect: (dialog) => {
+        tab.nextTab()
+        route.navigate(tab.activeTab().route)
+        dialog.clear()
+      },
+    },
+    {
+      title: "Previous tab",
+      value: "tab.prev",
+      keybind: "tab_prev",
+      category: "Tabs",
+      hidden: true,
+      onSelect: (dialog) => {
+        tab.prevTab()
+        route.navigate(tab.activeTab().route)
+        dialog.clear()
+      },
+    },
+    {
+      title: "List tabs",
+      value: "tab.list",
+      category: "Tabs",
+      slash: {
+        name: "tabs",
+      },
+      onSelect: () => {
+        const options = tab.tabs.map((t, i) => {
+          const indicator = t.status === "busy" ? "⟳" : t.status === "error" ? "✗" : t.status === "attention" ? "!" : "·"
+          return {
+            title: `${indicator} ${t.label}`,
+            value: t.id,
+            footer: t.id === tab.activeTabId ? "active" : `Tab ${i + 1}`,
+          }
+        })
+        dialog.replace(() => (
+          <DialogSelect
+            title="Tabs"
+            options={options}
+            current={tab.activeTabId}
+            onSelect={(option) => {
+              tab.switchTab(option.value)
+              route.navigate(tab.activeTab().route)
+              dialog.clear()
+            }}
+          />
+        ))
+      },
+    },
+    {
+      title: tab.showTabBar ? "Hide tab bar" : "Show tab bar",
+      value: "tab.bar.toggle",
+      keybind: "tab_bar_toggle",
+      category: "Tabs",
+      onSelect: (dialog) => {
+        tab.toggleTabBar()
+        dialog.clear()
+      },
+    },
+    ...Array.from({ length: 9 }, (_, i) => ({
+      title: `Switch to tab ${i + 1}`,
+      value: `tab.${i + 1}`,
+      keybind: `tab_${i + 1}` as keyof import("@opencode-ai/sdk/v2").KeybindsConfig,
+      category: "Tabs" as const,
+      hidden: true as const,
+      enabled: tab.tabs.length > i,
+      onSelect: (dialog: ReturnType<typeof useDialog>) => {
+        tab.switchToIndex(i)
+        route.navigate(tab.activeTab().route)
+        dialog.clear()
+      },
+    })),
   ])
 
   createEffect(() => {
@@ -647,8 +844,14 @@ function App() {
   })
 
   sdk.event.on(SessionApi.Event.Deleted.type, (evt) => {
-    if (route.data.type === "session" && route.data.sessionID === evt.properties.info.id) {
-      route.navigate({ type: "home" })
+    const deletedId = evt.properties.info.id
+    const affectedTab = tab.findTabBySessionId(deletedId)
+    if (affectedTab) {
+      tab.updateTabRoute(affectedTab.id, { type: "home" })
+      tab.updateTabLabel(affectedTab.id, "Home")
+      if (affectedTab.id === tab.activeTabId) {
+        route.navigate({ type: "home" })
+      }
       toast.show({
         variant: "info",
         message: "The current session was deleted",
@@ -671,6 +874,14 @@ function App() {
       return String(error)
     })()
 
+    const errorSessionId = evt.properties.sessionID as string | undefined
+    if (errorSessionId) {
+      const errorTab = tab.findTabBySessionId(errorSessionId)
+      if (errorTab) {
+        tab.updateTabStatus(errorTab.id, "error")
+      }
+    }
+
     toast.show({
       variant: "error",
       message,
@@ -692,6 +903,7 @@ function App() {
       width={dimensions().width}
       height={dimensions().height}
       backgroundColor={theme.background}
+      flexDirection="column"
       onMouseUp={async () => {
         if (Flag.OPENCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT) {
           renderer.clearSelection()
@@ -706,14 +918,17 @@ function App() {
         }
       }}
     >
-      <Switch>
-        <Match when={route.data.type === "home"}>
-          <Home />
-        </Match>
-        <Match when={route.data.type === "session"}>
-          <Session />
-        </Match>
-      </Switch>
+      <TabBar />
+      <box flexGrow={1} flexDirection="column">
+        <Switch>
+          <Match when={route.data.type === "home"}>
+            <Home />
+          </Match>
+          <Match when={route.data.type === "session"}>
+            <Session />
+          </Match>
+        </Switch>
+      </box>
     </box>
   )
 }
