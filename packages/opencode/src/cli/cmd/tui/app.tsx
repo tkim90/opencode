@@ -36,6 +36,10 @@ import { ArgsProvider, useArgs, type Args } from "./context/args"
 import open from "open"
 import { writeHeapSnapshot } from "v8"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
+import { TabProvider, useTab } from "@tui/context/tab"
+import { TabBar } from "@tui/component/tab-bar"
+import { DialogTabList } from "@tui/component/dialog-tab-list"
+import type { ParentProps } from "solid-js"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   // can't set raw mode if not a TTY
@@ -126,37 +130,39 @@ export function tui(input: {
               <ExitProvider onExit={onExit}>
                 <KVProvider>
                   <ToastProvider>
-                    <RouteProvider>
-                      <SDKProvider
-                        url={input.url}
-                        directory={input.directory}
-                        fetch={input.fetch}
-                        headers={input.headers}
-                        events={input.events}
-                      >
-                        <SyncProvider>
-                          <ThemeProvider mode={mode}>
-                            <LocalProvider>
-                              <KeybindProvider>
-                                <PromptStashProvider>
-                                  <DialogProvider>
-                                    <CommandProvider>
-                                      <FrecencyProvider>
-                                        <PromptHistoryProvider>
-                                          <PromptRefProvider>
-                                            <App />
-                                          </PromptRefProvider>
-                                        </PromptHistoryProvider>
-                                      </FrecencyProvider>
-                                    </CommandProvider>
-                                  </DialogProvider>
-                                </PromptStashProvider>
-                              </KeybindProvider>
-                            </LocalProvider>
-                          </ThemeProvider>
-                        </SyncProvider>
-                      </SDKProvider>
-                    </RouteProvider>
+                    <SDKProvider
+                      url={input.url}
+                      directory={input.directory}
+                      fetch={input.fetch}
+                      headers={input.headers}
+                      events={input.events}
+                    >
+                      <SyncProvider>
+                        <TabProvider>
+                          <TabRouteConnector>
+                            <ThemeProvider mode={mode}>
+                              <LocalProvider>
+                                <KeybindProvider>
+                                  <PromptStashProvider>
+                                    <DialogProvider>
+                                      <CommandProvider>
+                                        <FrecencyProvider>
+                                          <PromptHistoryProvider>
+                                            <PromptRefProvider>
+                                              <App />
+                                            </PromptRefProvider>
+                                          </PromptHistoryProvider>
+                                        </FrecencyProvider>
+                                      </CommandProvider>
+                                    </DialogProvider>
+                                  </PromptStashProvider>
+                                </KeybindProvider>
+                              </LocalProvider>
+                            </ThemeProvider>
+                          </TabRouteConnector>
+                        </TabProvider>
+                      </SyncProvider>
+                    </SDKProvider>
                   </ToastProvider>
                 </KVProvider>
               </ExitProvider>
@@ -183,8 +189,21 @@ export function tui(input: {
   })
 }
 
+function TabRouteConnector(props: ParentProps) {
+  const tab = useTab()
+  return (
+    <RouteProvider
+      tabRoute={tab.activeTab.route}
+      tabNavigate={(route) => tab.navigate(route)}
+    >
+      {props.children}
+    </RouteProvider>
+  )
+}
+
 function App() {
   const route = useRoute()
+  const tab = useTab()
   const dimensions = useTerminalDimensions()
   const renderer = useRenderer()
   renderer.disableStdoutInterception()
@@ -610,6 +629,80 @@ function App() {
         dialog.clear()
       },
     },
+    {
+      title: "New tab",
+      value: "tab.new",
+      keybind: "tab_new",
+      category: "Tabs",
+      slash: {
+        name: "newtab",
+      },
+      onSelect: (dialog) => {
+        tab.open()
+        dialog.clear()
+      },
+    },
+    {
+      title: "Close tab",
+      value: "tab.close",
+      keybind: "tab_close",
+      category: "Tabs",
+      onSelect: (dialog) => {
+        tab.close(tab.activeTabId)
+        dialog.clear()
+      },
+    },
+    {
+      title: "Next tab",
+      value: "tab.next",
+      keybind: "tab_next",
+      category: "Tabs",
+      hidden: true,
+      onSelect: () => {
+        tab.nextTab()
+      },
+    },
+    {
+      title: "Previous tab",
+      value: "tab.prev",
+      keybind: "tab_prev",
+      category: "Tabs",
+      hidden: true,
+      onSelect: () => {
+        tab.prevTab()
+      },
+    },
+    {
+      title: "List tabs",
+      value: "tab.list",
+      keybind: "tab_list",
+      category: "Tabs",
+      slash: {
+        name: "tabs",
+      },
+      onSelect: () => {
+        dialog.replace(() => <DialogTabList />)
+      },
+    },
+    {
+      title: kv.get("tab_bar_visible", false) ? "Hide tab bar" : "Always show tab bar",
+      value: "tab.toggle_bar",
+      category: "Tabs",
+      onSelect: (dialog) => {
+        kv.set("tab_bar_visible", !kv.get("tab_bar_visible", false))
+        dialog.clear()
+      },
+    },
+    ...(["tab_1", "tab_2", "tab_3", "tab_4", "tab_5", "tab_6", "tab_7", "tab_8", "tab_9"] as const).map((key, i) => ({
+      title: `Switch to tab ${i + 1}`,
+      value: `tab.${i + 1}`,
+      keybind: key,
+      category: "Tabs" as const,
+      hidden: true as const,
+      onSelect: () => {
+        tab.goToTab(i + 1)
+      },
+    })),
   ])
 
   createEffect(() => {
@@ -706,6 +799,9 @@ function App() {
         }
       }}
     >
+      <Show when={tab.count > 1 || kv.get("tab_bar_visible", false)}>
+        <TabBar />
+      </Show>
       <Switch>
         <Match when={route.data.type === "home"}>
           <Home />

@@ -1,5 +1,5 @@
 import { createStore } from "solid-js/store"
-import { createSimpleContext } from "./helper"
+import { createContext, useContext, type ParentProps } from "solid-js"
 import type { PromptInfo } from "../component/prompt/history"
 
 export type HomeRoute = {
@@ -15,28 +15,47 @@ export type SessionRoute = {
 
 export type Route = HomeRoute | SessionRoute
 
-export const { use: useRoute, provider: RouteProvider } = createSimpleContext({
-  name: "Route",
-  init: () => {
-    const [store, setStore] = createStore<Route>(
-      process.env["OPENCODE_ROUTE"]
-        ? JSON.parse(process.env["OPENCODE_ROUTE"])
-        : {
-            type: "home",
-          },
-    )
+type RouteContextValue = {
+  readonly data: Route
+  navigate(route: Route): void
+}
 
-    return {
-      get data() {
-        return store
-      },
-      navigate(route: Route) {
+const RouteCtx = createContext<RouteContextValue>()
+
+export function RouteProvider(
+  props: ParentProps & { tabNavigate?: (route: Route) => void; tabRoute?: Route },
+) {
+  const [store, setStore] = createStore<Route>(
+    process.env["OPENCODE_ROUTE"]
+      ? JSON.parse(process.env["OPENCODE_ROUTE"])
+      : {
+          type: "home",
+        },
+  )
+
+  const value: RouteContextValue = {
+    get data() {
+      if (props.tabRoute) return props.tabRoute
+      return store
+    },
+    navigate(route: Route) {
+      if (props.tabNavigate) {
+        props.tabNavigate(route)
+      } else {
         console.log("navigate", route)
         setStore(route)
-      },
-    }
-  },
-})
+      }
+    },
+  }
+
+  return <RouteCtx.Provider value={value}>{props.children}</RouteCtx.Provider>
+}
+
+export function useRoute(): RouteContextValue {
+  const value = useContext(RouteCtx)
+  if (!value) throw new Error("Route context must be used within a RouteProvider")
+  return value
+}
 
 export type RouteContext = ReturnType<typeof useRoute>
 
