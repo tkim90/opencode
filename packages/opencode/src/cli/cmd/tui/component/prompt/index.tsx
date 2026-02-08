@@ -123,6 +123,10 @@ export function Prompt(props: PromptProps) {
     extmarkToPartIndex: Map<number, number>
     interrupt: number
     placeholder: number
+    searchMode: boolean
+    searchQuery: string
+    searchMatchIndex: number
+    searchSavedInput: string
   }>({
     placeholder: Math.floor(Math.random() * PLACEHOLDERS.length),
     prompt: {
@@ -132,6 +136,10 @@ export function Prompt(props: PromptProps) {
     mode: "normal",
     extmarkToPartIndex: new Map(),
     interrupt: 0,
+    searchMode: false,
+    searchQuery: "",
+    searchMatchIndex: 0,
+    searchSavedInput: "",
   })
 
   // Initialize agent/model/variant from last user message when session changes
@@ -862,6 +870,84 @@ export function Prompt(props: PromptProps) {
                   }
                 }
                 if (store.mode === "normal") autocomplete.onKeyDown(e)
+                if (!autocomplete.visible && keybind.match("history_search", e)) {
+                  e.preventDefault()
+                  if (store.searchMode) {
+                    const results = history.search(store.searchQuery)
+                    if (results.length > 0 && store.searchMatchIndex < results.length - 1) {
+                      const next = store.searchMatchIndex + 1
+                      setStore("searchMatchIndex", next)
+                      const match = results[next]
+                      input.setText(match.input)
+                      setStore("prompt", match)
+                      setStore("mode", match.mode ?? "normal")
+                      restoreExtmarksFromParts(match.parts)
+                      input.cursorOffset = match.input.length
+                    }
+                  } else {
+                    setStore("searchMode", true)
+                    setStore("searchQuery", "")
+                    setStore("searchMatchIndex", 0)
+                    setStore("searchSavedInput", input.plainText)
+                  }
+                  return
+                }
+                if (store.searchMode) {
+                  if (e.name === "escape") {
+                    input.setText(store.searchSavedInput)
+                    setStore("searchMode", false)
+                    setStore("searchQuery", "")
+                    setStore("searchMatchIndex", 0)
+                    e.preventDefault()
+                    return
+                  }
+                  if (e.name === "return") {
+                    setStore("searchMode", false)
+                    setStore("searchQuery", "")
+                    setStore("searchMatchIndex", 0)
+                    e.preventDefault()
+                    return
+                  }
+                  if (e.name === "backspace") {
+                    if (store.searchQuery.length > 0) {
+                      const q = store.searchQuery.slice(0, -1)
+                      setStore("searchQuery", q)
+                      setStore("searchMatchIndex", 0)
+                      const results = history.search(q)
+                      if (results.length > 0) {
+                        input.setText(results[0].input)
+                        setStore("prompt", results[0])
+                        setStore("mode", results[0].mode ?? "normal")
+                        restoreExtmarksFromParts(results[0].parts)
+                        input.cursorOffset = results[0].input.length
+                      }
+                    } else {
+                      input.setText(store.searchSavedInput)
+                      setStore("searchMode", false)
+                      setStore("searchQuery", "")
+                      setStore("searchMatchIndex", 0)
+                    }
+                    e.preventDefault()
+                    return
+                  }
+                  if (e.name && e.name.length === 1 && !e.ctrl && !e.meta) {
+                    const q = store.searchQuery + e.name
+                    setStore("searchQuery", q)
+                    setStore("searchMatchIndex", 0)
+                    const results = history.search(q)
+                    if (results.length > 0) {
+                      input.setText(results[0].input)
+                      setStore("prompt", results[0])
+                      setStore("mode", results[0].mode ?? "normal")
+                      restoreExtmarksFromParts(results[0].parts)
+                      input.cursorOffset = results[0].input.length
+                    }
+                    e.preventDefault()
+                    return
+                  }
+                  e.preventDefault()
+                  return
+                }
                 if (!autocomplete.visible) {
                   if (
                     (keybind.match("history_previous", e) && input.cursorOffset === 0) ||
@@ -973,6 +1059,22 @@ export function Prompt(props: PromptProps) {
               cursorColor={theme.text}
               syntaxStyle={syntax()}
             />
+            <Show when={store.searchMode}>
+              <box flexDirection="row" flexShrink={0} paddingTop={1}>
+                <text fg={theme.textMuted}>
+                  {t`(reverse-i-search)'`}
+                  <span style={{ fg: theme.text }}>{store.searchQuery}</span>
+                  {t`': `}
+                  <span style={{ fg: theme.textMuted }}>
+                    {(() => {
+                      const results = history.search(store.searchQuery)
+                      const idx = Math.min(store.searchMatchIndex, results.length - 1)
+                      return results[idx]?.input ?? (store.searchQuery ? "(no match)" : "")
+                    })()}
+                  </span>
+                </text>
+              </box>
+            </Show>
             <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1}>
               <text fg={highlight()}>
                 {store.mode === "shell" ? "Shell" : Locale.titlecase(local.agent.current().name)}{" "}

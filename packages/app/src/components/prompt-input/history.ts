@@ -83,6 +83,31 @@ type HistoryNavResult =
       cursor: "start" | "end"
     }
 
+export type HistorySearchResult = {
+  entry: Prompt
+  index: number
+  text: string
+}
+
+export function promptText(prompt: Prompt): string {
+  return prompt
+    .map((part) => ("content" in part ? part.content : ""))
+    .join("")
+}
+
+export function searchPromptHistory(query: string, entries: Prompt[]): HistorySearchResult[] {
+  if (!query) return []
+  const lower = query.toLowerCase()
+  const results: HistorySearchResult[] = []
+  for (let i = 0; i < entries.length; i++) {
+    const text = promptText(entries[i])
+    if (text.toLowerCase().includes(lower)) {
+      results.push({ entry: entries[i], index: i, text })
+    }
+  }
+  return results
+}
+
 export function navigatePromptHistory(input: HistoryNavInput): HistoryNavResult {
   if (input.direction === "up") {
     if (input.entries.length === 0) {

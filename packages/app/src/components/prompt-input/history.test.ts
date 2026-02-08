@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Prompt } from "@/context/prompt"
-import { clonePromptParts, navigatePromptHistory, prependHistoryEntry, promptLength } from "./history"
+import { clonePromptParts, navigatePromptHistory, prependHistoryEntry, promptLength, searchPromptHistory } from "./history"
 
 const DEFAULT_PROMPT: Prompt = [{ type: "text", content: "", start: 0, end: 0 }]
 
@@ -43,6 +43,39 @@ describe("prompt-input history", () => {
     if (!down.handled) throw new Error("expected handled")
     expect(down.historyIndex).toBe(-1)
     expect(down.prompt[0]?.type === "text" ? down.prompt[0].content : "").toBe("draft")
+  })
+
+  test("searchPromptHistory returns matching entries case-insensitively", () => {
+    const entries = [text("fix bug in parser"), text("add new feature"), text("Fix typo in readme")]
+    const results = searchPromptHistory("fix", entries)
+    expect(results).toHaveLength(2)
+    expect(results[0].index).toBe(0)
+    expect(results[0].text).toBe("fix bug in parser")
+    expect(results[1].index).toBe(2)
+    expect(results[1].text).toBe("Fix typo in readme")
+  })
+
+  test("searchPromptHistory returns empty array for empty query", () => {
+    const entries = [text("hello"), text("world")]
+    expect(searchPromptHistory("", entries)).toEqual([])
+  })
+
+  test("searchPromptHistory returns empty array when no matches", () => {
+    const entries = [text("hello"), text("world")]
+    expect(searchPromptHistory("xyz", entries)).toEqual([])
+  })
+
+  test("searchPromptHistory extracts text from mixed prompt parts", () => {
+    const mixed: Prompt[] = [
+      [
+        { type: "text", content: "deploy ", start: 0, end: 7 },
+        { type: "file", path: "src/a.ts", content: "@src/a.ts", start: 7, end: 16 },
+        { type: "text", content: " to prod", start: 16, end: 24 },
+      ],
+    ]
+    const results = searchPromptHistory("deploy", mixed)
+    expect(results).toHaveLength(1)
+    expect(results[0].text).toBe("deploy @src/a.ts to prod")
   })
 
   test("helpers clone prompt and count text content length", () => {

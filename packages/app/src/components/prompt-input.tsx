@@ -37,7 +37,7 @@ import { usePermission } from "@/context/permission"
 import { useLanguage } from "@/context/language"
 import { createTextFragment, getCursorPosition, setCursorPosition, setRangeEdge } from "./prompt-input/editor-dom"
 import { createPromptAttachments, ACCEPTED_FILE_TYPES } from "./prompt-input/attachments"
-import { navigatePromptHistory, prependHistoryEntry, promptLength } from "./prompt-input/history"
+import { navigatePromptHistory, prependHistoryEntry, promptLength, searchPromptHistory, clonePromptParts, promptText } from "./prompt-input/history"
 import { createPromptSubmit } from "./prompt-input/submit"
 import { PromptPopover, type AtOption, type SlashCommand } from "./prompt-input/slash-popover"
 import { PromptContextItems } from "./prompt-input/context-items"
@@ -208,6 +208,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     dragging: boolean
     mode: "normal" | "shell"
     applyingHistory: boolean
+    searchMode: boolean
+    searchQuery: string
+    searchMatchIndex: number
+    searchSavedPrompt: Prompt | null
   }>({
     popover: null,
     historyIndex: -1,
@@ -216,6 +220,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     dragging: false,
     mode: "normal",
     applyingHistory: false,
+    searchMode: false,
+    searchQuery: "",
+    searchMatchIndex: 0,
+    searchSavedPrompt: null,
   })
   const placeholder = createMemo(() =>
     promptPlaceholder({
@@ -756,6 +764,58 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return true
   }
 
+  const searchResults = createMemo(() => {
+    if (!store.searchMode || !store.searchQuery) return []
+    const entries = store.mode === "shell" ? shellHistory.entries : history.entries
+    return searchPromptHistory(store.searchQuery, entries)
+  })
+
+  const searchMatchText = createMemo(() => {
+    const results = searchResults()
+    if (results.length === 0) return ""
+    const idx = Math.min(store.searchMatchIndex, results.length - 1)
+    return results[idx]?.text ?? ""
+  })
+
+  const enterSearchMode = () => {
+    if (store.searchMode) {
+      const results = searchResults()
+      if (results.length > 0 && store.searchMatchIndex < results.length - 1) {
+        const next = store.searchMatchIndex + 1
+        setStore("searchMatchIndex", next)
+        applyHistoryPrompt(clonePromptParts(results[next].entry), "end")
+      }
+      return
+    }
+    setStore("searchMode", true)
+    setStore("searchQuery", "")
+    setStore("searchMatchIndex", 0)
+    setStore("searchSavedPrompt", clonePromptParts(prompt.current()))
+    setStore("popover", null)
+  }
+
+  const exitSearchMode = (accept: boolean) => {
+    if (!store.searchMode) return
+    const saved = store.searchSavedPrompt
+    setStore("searchMode", false)
+    setStore("searchQuery", "")
+    setStore("searchMatchIndex", 0)
+    setStore("searchSavedPrompt", null)
+    if (!accept && saved) {
+      applyHistoryPrompt(saved, "end")
+    }
+  }
+
+  const updateSearchQuery = (query: string) => {
+    setStore("searchQuery", query)
+    setStore("searchMatchIndex", 0)
+    const entries = store.mode === "shell" ? shellHistory.entries : history.entries
+    const results = searchPromptHistory(query, entries)
+    if (results.length > 0) {
+      applyHistoryPrompt(clonePromptParts(results[0].entry), "end")
+    }
+  }
+
   const { addImageAttachment, removeImageAttachment, handlePaste } = createPromptAttachments({
     editor: () => editorRef,
     isFocused,
@@ -841,6 +901,41 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
 
     const ctrl = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
 
+    if (ctrl && event.code === "KeyR") {
+      event.preventDefault()
+      enterSearchMode()
+      return
+    }
+
+    if (store.searchMode) {
+      if (event.key === "Escape") {
+        exitSearchMode(false)
+        event.preventDefault()
+        return
+      }
+      if (event.key === "Enter") {
+        exitSearchMode(true)
+        event.preventDefault()
+        return
+      }
+      if (event.key === "Backspace") {
+        if (store.searchQuery.length > 0) {
+          updateSearchQuery(store.searchQuery.slice(0, -1))
+        } else {
+          exitSearchMode(false)
+        }
+        event.preventDefault()
+        return
+      }
+      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        updateSearchQuery(store.searchQuery + event.key)
+        event.preventDefault()
+        return
+      }
+      event.preventDefault()
+      return
+    }
+
     if (store.popover) {
       if (event.key === "Tab") {
         selectPopoverActive()
@@ -915,6 +1010,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       handleSubmit(event)
     }
     if (event.key === "Escape") {
+      if (store.searchMode) {
+        exitSearchMode(false)
+        event.preventDefault()
+        return
+      }
       if (store.popover) {
         setStore("popover", null)
       } else if (working()) {
@@ -1002,6 +1102,14 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             </div>
           </Show>
         </div>
+        <Show when={store.searchMode}>
+          <div class="px-3 py-1.5 text-12-regular text-text-subtle font-mono border-t border-border-base flex items-center gap-1 min-w-0">
+            <span class="shrink-0 text-text-weak">(reverse-i-search)</span>
+            <span class="text-text-primary">'{store.searchQuery}'</span>
+            <span class="shrink-0 text-text-weak">:</span>
+            <span class="truncate text-text-base">{searchMatchText() || (store.searchQuery ? "(no match)" : "")}</span>
+          </div>
+        </Show>
         <div class="relative p-3 flex items-center justify-between gap-2">
           <div class="flex items-center gap-2 min-w-0 flex-1">
             <Switch>
