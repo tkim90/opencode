@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Prompt } from "@/context/prompt"
-import { clonePromptParts, navigatePromptHistory, prependHistoryEntry, promptLength } from "./history"
+import { clonePromptParts, navigatePromptHistory, prependHistoryEntry, promptLength, searchHistory } from "./history"
 
 const DEFAULT_PROMPT: Prompt = [{ type: "text", content: "", start: 0, end: 0 }]
 
@@ -43,6 +43,28 @@ describe("prompt-input history", () => {
     if (!down.handled) throw new Error("expected handled")
     expect(down.historyIndex).toBe(-1)
     expect(down.prompt[0]?.type === "text" ? down.prompt[0].content : "").toBe("draft")
+  })
+
+  test("searchHistory returns matching indices ordered from most recent", () => {
+    const entries = [text("hello world"), text("foo bar"), text("hello again"), text("baz")]
+    const results = searchHistory(entries, "hello")
+    expect(results).toEqual([0, 2])
+  })
+
+  test("searchHistory returns empty array for empty query", () => {
+    const entries = [text("hello"), text("world")]
+    expect(searchHistory(entries, "")).toEqual([])
+  })
+
+  test("searchHistory is case-insensitive", () => {
+    const entries = [text("Hello World"), text("HELLO"), text("nope")]
+    const results = searchHistory(entries, "hello")
+    expect(results).toEqual([0, 1])
+  })
+
+  test("searchHistory returns empty array when no matches", () => {
+    const entries = [text("foo"), text("bar")]
+    expect(searchHistory(entries, "xyz")).toEqual([])
   })
 
   test("helpers clone prompt and count text content length", () => {

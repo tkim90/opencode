@@ -13,6 +13,7 @@ import { useKeybind } from "@tui/context/keybind"
 import { usePromptHistory, type PromptInfo } from "./history"
 import { usePromptStash } from "./stash"
 import { DialogStash } from "../dialog-stash"
+import { DialogHistorySearch } from "../dialog-history-search"
 import { type AutocompleteRef, Autocomplete } from "./autocomplete"
 import { useCommandDialog } from "../dialog-command"
 import { useRenderer } from "@opentui/solid"
@@ -863,6 +864,21 @@ export function Prompt(props: PromptProps) {
                 }
                 if (store.mode === "normal") autocomplete.onKeyDown(e)
                 if (!autocomplete.visible) {
+                  if (keybind.match("history_search", e)) {
+                    e.preventDefault()
+                    dialog.replace(() => (
+                      <DialogHistorySearch
+                        onSelect={(entry) => {
+                          input.setText(entry.input)
+                          setStore("prompt", entry)
+                          setStore("mode", entry.mode ?? "normal")
+                          restoreExtmarksFromParts(entry.parts)
+                          input.gotoBufferEnd()
+                        }}
+                      />
+                    ))
+                    return
+                  }
                   if (
                     (keybind.match("history_previous", e) && input.cursorOffset === 0) ||
                     (keybind.match("history_next", e) && input.cursorOffset === input.plainText.length)

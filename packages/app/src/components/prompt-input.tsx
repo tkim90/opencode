@@ -37,7 +37,7 @@ import { usePermission } from "@/context/permission"
 import { useLanguage } from "@/context/language"
 import { createTextFragment, getCursorPosition, setCursorPosition, setRangeEdge } from "./prompt-input/editor-dom"
 import { createPromptAttachments, ACCEPTED_FILE_TYPES } from "./prompt-input/attachments"
-import { navigatePromptHistory, prependHistoryEntry, promptLength } from "./prompt-input/history"
+import { navigatePromptHistory, prependHistoryEntry, promptLength, searchHistory } from "./prompt-input/history"
 import { createPromptSubmit } from "./prompt-input/submit"
 import { PromptPopover, type AtOption, type SlashCommand } from "./prompt-input/slash-popover"
 import { PromptContextItems } from "./prompt-input/context-items"
@@ -208,6 +208,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     dragging: boolean
     mode: "normal" | "shell"
     applyingHistory: boolean
+    historySearch: boolean
+    historySearchQuery: string
+    historySearchMatchIndex: number
   }>({
     popover: null,
     historyIndex: -1,
@@ -216,6 +219,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     dragging: false,
     mode: "normal",
     applyingHistory: false,
+    historySearch: false,
+    historySearchQuery: "",
+    historySearchMatchIndex: 0,
   })
   const placeholder = createMemo(() =>
     promptPlaceholder({
@@ -841,6 +847,68 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
 
     const ctrl = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
 
+    if (store.historySearch) {
+      if (event.key === "Escape" || (ctrl && event.code === "KeyG")) {
+        setStore("historySearch", false)
+        setStore("historySearchQuery", "")
+        setStore("historySearchMatchIndex", 0)
+        if (store.savedPrompt) {
+          applyHistoryPrompt(store.savedPrompt, "end")
+          setStore("savedPrompt", null)
+        }
+        event.preventDefault()
+        return
+      }
+      if (ctrl && event.code === "KeyR") {
+        const currentEntries = store.mode === "shell" ? shellHistory.entries : history.entries
+        const matches = searchHistory(currentEntries, store.historySearchQuery)
+        if (matches.length > 0) {
+          const nextIdx = (store.historySearchMatchIndex + 1) % matches.length
+          setStore("historySearchMatchIndex", nextIdx)
+          applyHistoryPrompt(currentEntries[matches[nextIdx]], "end")
+        }
+        event.preventDefault()
+        return
+      }
+      if (event.key === "Enter") {
+        setStore("historySearch", false)
+        setStore("historySearchQuery", "")
+        setStore("historySearchMatchIndex", 0)
+        setStore("savedPrompt", null)
+        setStore("historyIndex", -1)
+        event.preventDefault()
+        return
+      }
+      if (event.key === "Backspace") {
+        const q = store.historySearchQuery.slice(0, -1)
+        setStore("historySearchQuery", q)
+        setStore("historySearchMatchIndex", 0)
+        const currentEntries = store.mode === "shell" ? shellHistory.entries : history.entries
+        const matches = searchHistory(currentEntries, q)
+        if (matches.length > 0) {
+          applyHistoryPrompt(currentEntries[matches[0]], "end")
+        } else if (store.savedPrompt) {
+          applyHistoryPrompt(store.savedPrompt, "end")
+        }
+        event.preventDefault()
+        return
+      }
+      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const q = store.historySearchQuery + event.key
+        setStore("historySearchQuery", q)
+        setStore("historySearchMatchIndex", 0)
+        const currentEntries = store.mode === "shell" ? shellHistory.entries : history.entries
+        const matches = searchHistory(currentEntries, q)
+        if (matches.length > 0) {
+          applyHistoryPrompt(currentEntries[matches[0]], "end")
+        }
+        event.preventDefault()
+        return
+      }
+      event.preventDefault()
+      return
+    }
+
     if (store.popover) {
       if (event.key === "Tab") {
         selectPopoverActive()
@@ -861,6 +929,17 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         event.preventDefault()
         return
       }
+    }
+
+    if (ctrl && event.code === "KeyR") {
+      if (!store.historySearch) {
+        setStore("historySearch", true)
+        setStore("historySearchQuery", "")
+        setStore("historySearchMatchIndex", 0)
+        setStore("savedPrompt", prompt.current())
+      }
+      event.preventDefault()
+      return
     }
 
     if (ctrl && event.code === "KeyG") {
@@ -972,6 +1051,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           onRemove={removeImageAttachment}
           removeLabel={language.t("prompt.attachment.remove")}
         />
+        <Show when={store.historySearch}>
+          <div class="flex items-center gap-2 px-3 py-1.5 border-b border-border-base bg-surface-raised text-12-regular">
+            <span class="text-text-weak">(reverse-i-search)</span>
+            <span class="text-text-primary font-mono">{store.historySearchQuery}</span>
+          </div>
+        </Show>
         <div class="relative max-h-[240px] overflow-y-auto" ref={(el) => (scrollRef = el)}>
           <div
             data-component="prompt-input"

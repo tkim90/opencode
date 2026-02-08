@@ -27,6 +27,18 @@ export type PromptInfo = {
 
 const MAX_HISTORY_ENTRIES = 50
 
+export function searchHistoryReverse(entries: PromptInfo[], query: string, startIndex = 0): number[] {
+  if (!query) return []
+  const needle = query.toLowerCase()
+  const results: number[] = []
+  for (let i = entries.length - 1 - startIndex; i >= 0; i--) {
+    if (entries[i].input.toLowerCase().includes(needle)) {
+      results.push(i)
+    }
+  }
+  return results
+}
+
 export const { use: usePromptHistory, provider: PromptHistoryProvider } = createSimpleContext({
   name: "PromptHistory",
   init: () => {
@@ -61,6 +73,9 @@ export const { use: usePromptHistory, provider: PromptHistoryProvider } = create
     })
 
     return {
+      entries() {
+        return store.history
+      },
       move(direction: 1 | -1, input: string) {
         if (!store.history.length) return undefined
         const current = store.history.at(store.index)

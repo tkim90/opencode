@@ -8489,7 +8489,7 @@
           },
           "session_rename": {
             "description": "Rename session",
-            "default": "ctrl+r",
+            "default": "<leader>r",
             "type": "string"
           },
           "session_delete": {
@@ -8855,6 +8855,11 @@
           "history_next": {
             "description": "Next history item",
             "default": "down",
+            "type": "string"
+          },
+          "history_search": {
+            "description": "Reverse search prompt history",
+            "default": "ctrl+r",
             "type": "string"
           },
           "session_child_cycle": {

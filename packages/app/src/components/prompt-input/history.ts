@@ -20,6 +20,24 @@ export function promptLength(prompt: Prompt) {
   return prompt.reduce((len, part) => len + ("content" in part ? part.content.length : 0), 0)
 }
 
+function promptText(prompt: Prompt): string {
+  return prompt
+    .map((part) => ("content" in part ? part.content : ""))
+    .join("")
+}
+
+export function searchHistory(entries: Prompt[], query: string): number[] {
+  if (!query) return []
+  const needle = query.toLowerCase()
+  const results: number[] = []
+  for (let i = 0; i < entries.length; i++) {
+    if (promptText(entries[i]).toLowerCase().includes(needle)) {
+      results.push(i)
+    }
+  }
+  return results
+}
+
 export function prependHistoryEntry(entries: Prompt[], prompt: Prompt, max = MAX_HISTORY) {
   const text = prompt
     .map((part) => ("content" in part ? part.content : ""))
