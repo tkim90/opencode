@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Prompt } from "@/context/prompt"
-import { clonePromptParts, navigatePromptHistory, prependHistoryEntry, promptLength } from "./history"
+import { clonePromptParts, navigatePromptHistory, prependHistoryEntry, promptLength, searchPromptHistory } from "./history"
 
 const DEFAULT_PROMPT: Prompt = [{ type: "text", content: "", start: 0, end: 0 }]
 
@@ -43,6 +43,55 @@ describe("prompt-input history", () => {
     if (!down.handled) throw new Error("expected handled")
     expect(down.historyIndex).toBe(-1)
     expect(down.prompt[0]?.type === "text" ? down.prompt[0].content : "").toBe("draft")
+  })
+
+  test("searchPromptHistory finds matching entry by substring", () => {
+    const entries = [text("fix broken tests"), text("add new feature"), text("refactor utils")]
+    const result = searchPromptHistory({ entries, query: "feat" })
+    expect(result.found).toBe(true)
+    if (!result.found) throw new Error("expected found")
+    expect(result.index).toBe(1)
+  })
+
+  test("searchPromptHistory is case-insensitive", () => {
+    const entries = [text("Fix Broken Tests"), text("Add New Feature")]
+    const result = searchPromptHistory({ entries, query: "fix broken" })
+    expect(result.found).toBe(true)
+    if (!result.found) throw new Error("expected found")
+    expect(result.index).toBe(0)
+  })
+
+  test("searchPromptHistory returns not found for empty query", () => {
+    const entries = [text("hello")]
+    const result = searchPromptHistory({ entries, query: "" })
+    expect(result.found).toBe(false)
+  })
+
+  test("searchPromptHistory returns not found when no match", () => {
+    const entries = [text("hello"), text("world")]
+    const result = searchPromptHistory({ entries, query: "xyz" })
+    expect(result.found).toBe(false)
+  })
+
+  test("searchPromptHistory cycles with startIndex", () => {
+    const entries = [text("fix a"), text("fix b"), text("fix c")]
+    const first = searchPromptHistory({ entries, query: "fix" })
+    expect(first.found).toBe(true)
+    if (!first.found) throw new Error("expected found")
+    expect(first.index).toBe(0)
+
+    const second = searchPromptHistory({ entries, query: "fix", startIndex: first.index + 1 })
+    expect(second.found).toBe(true)
+    if (!second.found) throw new Error("expected found")
+    expect(second.index).toBe(1)
+
+    const third = searchPromptHistory({ entries, query: "fix", startIndex: second.index + 1 })
+    expect(third.found).toBe(true)
+    if (!third.found) throw new Error("expected found")
+    expect(third.index).toBe(2)
+
+    const none = searchPromptHistory({ entries, query: "fix", startIndex: third.index + 1 })
+    expect(none.found).toBe(false)
   })
 
   test("helpers clone prompt and count text content length", () => {

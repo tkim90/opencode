@@ -83,6 +83,40 @@ type HistoryNavResult =
       cursor: "start" | "end"
     }
 
+function promptText(prompt: Prompt): string {
+  return prompt
+    .map((part) => ("content" in part ? part.content : ""))
+    .join("")
+}
+
+export type HistorySearchInput = {
+  entries: Prompt[]
+  query: string
+  startIndex?: number
+}
+
+export type HistorySearchResult = {
+  found: true
+  index: number
+  prompt: Prompt
+} | {
+  found: false
+}
+
+export function searchPromptHistory(input: HistorySearchInput): HistorySearchResult {
+  const query = input.query.toLowerCase()
+  if (!query) return { found: false }
+
+  const start = input.startIndex ?? 0
+  for (let i = start; i < input.entries.length; i++) {
+    const text = promptText(input.entries[i]).toLowerCase()
+    if (text.includes(query)) {
+      return { found: true, index: i, prompt: input.entries[i] }
+    }
+  }
+  return { found: false }
+}
+
 export function navigatePromptHistory(input: HistoryNavInput): HistoryNavResult {
   if (input.direction === "up") {
     if (input.entries.length === 0) {

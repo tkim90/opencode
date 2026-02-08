@@ -37,7 +37,7 @@ import { usePermission } from "@/context/permission"
 import { useLanguage } from "@/context/language"
 import { createTextFragment, getCursorPosition, setCursorPosition, setRangeEdge } from "./prompt-input/editor-dom"
 import { createPromptAttachments, ACCEPTED_FILE_TYPES } from "./prompt-input/attachments"
-import { navigatePromptHistory, prependHistoryEntry, promptLength } from "./prompt-input/history"
+import { navigatePromptHistory, prependHistoryEntry, promptLength, searchPromptHistory } from "./prompt-input/history"
 import { createPromptSubmit } from "./prompt-input/submit"
 import { PromptPopover, type AtOption, type SlashCommand } from "./prompt-input/slash-popover"
 import { PromptContextItems } from "./prompt-input/context-items"
@@ -208,6 +208,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     dragging: boolean
     mode: "normal" | "shell"
     applyingHistory: boolean
+    searching: boolean
+    searchQuery: string
+    searchIndex: number
+    searchFailed: boolean
+    searchSavedPrompt: Prompt | null
   }>({
     popover: null,
     historyIndex: -1,
@@ -216,6 +221,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     dragging: false,
     mode: "normal",
     applyingHistory: false,
+    searching: false,
+    searchQuery: "",
+    searchIndex: 0,
+    searchFailed: false,
+    searchSavedPrompt: null,
   })
   const placeholder = createMemo(() =>
     promptPlaceholder({
@@ -756,6 +766,48 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return true
   }
 
+  const startSearch = () => {
+    if (store.searching) return
+    setStore("searching", true)
+    setStore("searchQuery", "")
+    setStore("searchIndex", 0)
+    setStore("searchFailed", false)
+    setStore("searchSavedPrompt", prompt.current().length > 0 ? prompt.current() : null)
+  }
+
+  const cancelSearch = () => {
+    if (!store.searching) return
+    if (store.searchSavedPrompt) {
+      applyHistoryPrompt(store.searchSavedPrompt, "end")
+    }
+    setStore("searching", false)
+    setStore("searchQuery", "")
+    setStore("searchIndex", 0)
+    setStore("searchFailed", false)
+    setStore("searchSavedPrompt", null)
+  }
+
+  const acceptSearch = () => {
+    if (!store.searching) return
+    setStore("searching", false)
+    setStore("searchQuery", "")
+    setStore("searchIndex", 0)
+    setStore("searchFailed", false)
+    setStore("searchSavedPrompt", null)
+  }
+
+  const runSearch = (query: string, startIndex: number) => {
+    const entries = store.mode === "shell" ? shellHistory.entries : history.entries
+    const result = searchPromptHistory({ entries, query, startIndex })
+    if (result.found) {
+      setStore("searchIndex", result.index)
+      setStore("searchFailed", false)
+      applyHistoryPrompt(result.prompt, "end")
+    } else {
+      setStore("searchFailed", true)
+    }
+  }
+
   const { addImageAttachment, removeImageAttachment, handlePaste } = createPromptAttachments({
     editor: () => editorRef,
     isFocused,
@@ -840,6 +892,53 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     }
 
     const ctrl = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+
+    if (ctrl && event.key === "r") {
+      event.preventDefault()
+      if (store.searching) {
+        runSearch(store.searchQuery, store.searchIndex + 1)
+      } else {
+        startSearch()
+      }
+      return
+    }
+
+    if (store.searching) {
+      if (event.key === "Escape") {
+        event.preventDefault()
+        cancelSearch()
+        return
+      }
+      if (event.key === "Enter") {
+        event.preventDefault()
+        acceptSearch()
+        return
+      }
+      if (event.key === "Backspace") {
+        event.preventDefault()
+        if (store.searchQuery.length > 0) {
+          const next = store.searchQuery.slice(0, -1)
+          setStore("searchQuery", next)
+          if (next) {
+            runSearch(next, 0)
+          } else {
+            setStore("searchFailed", false)
+            if (store.searchSavedPrompt) {
+              applyHistoryPrompt(store.searchSavedPrompt, "end")
+            }
+          }
+        }
+        return
+      }
+      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault()
+        const next = store.searchQuery + event.key
+        setStore("searchQuery", next)
+        runSearch(next, 0)
+        return
+      }
+      return
+    }
 
     if (store.popover) {
       if (event.key === "Tab") {
@@ -1002,6 +1101,15 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             </div>
           </Show>
         </div>
+        <Show when={store.searching}>
+          <div class="px-3 py-1.5 text-12-regular border-t border-border-base flex items-center gap-1 font-mono">
+            <span class="text-text-weak">
+              {store.searchFailed ? "failing reverse-i-search" : "reverse-i-search"}:
+            </span>
+            <span class="text-text-strong">{store.searchQuery}</span>
+            <span class="text-text-weak animate-pulse">|</span>
+          </div>
+        </Show>
         <div class="relative p-3 flex items-center justify-between gap-2">
           <div class="flex items-center gap-2 min-w-0 flex-1">
             <Switch>

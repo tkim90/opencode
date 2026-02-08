@@ -947,6 +947,10 @@ export type KeybindsConfig = {
    */
   input_newline?: string
   /**
+   * Reverse search prompt history
+   */
+  history_search?: string
+  /**
    * Previous history item
    */
   history_previous?: string

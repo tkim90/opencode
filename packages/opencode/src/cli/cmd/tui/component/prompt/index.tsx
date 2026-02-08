@@ -123,6 +123,11 @@ export function Prompt(props: PromptProps) {
     extmarkToPartIndex: Map<number, number>
     interrupt: number
     placeholder: number
+    searching: boolean
+    searchQuery: string
+    searchIndex: number
+    searchFailed: boolean
+    searchSavedPrompt: PromptInfo | null
   }>({
     placeholder: Math.floor(Math.random() * PLACEHOLDERS.length),
     prompt: {
@@ -132,6 +137,11 @@ export function Prompt(props: PromptProps) {
     mode: "normal",
     extmarkToPartIndex: new Map(),
     interrupt: 0,
+    searching: false,
+    searchQuery: "",
+    searchIndex: 0,
+    searchFailed: false,
+    searchSavedPrompt: null,
   })
 
   // Initialize agent/model/variant from last user message when session changes
@@ -861,6 +871,103 @@ export function Prompt(props: PromptProps) {
                     return
                   }
                 }
+                if (keybind.match("history_search", e)) {
+                  e.preventDefault()
+                  if (store.searching) {
+                    const result = history.search(store.searchQuery, store.searchIndex + 1)
+                    if (result.found) {
+                      setStore("searchIndex", result.index)
+                      setStore("searchFailed", false)
+                      input.setText(result.item.input)
+                      setStore("prompt", result.item)
+                      setStore("mode", result.item.mode ?? "normal")
+                      restoreExtmarksFromParts(result.item.parts)
+                      input.gotoBufferEnd()
+                    } else {
+                      setStore("searchFailed", true)
+                    }
+                  } else {
+                    setStore("searching", true)
+                    setStore("searchQuery", "")
+                    setStore("searchIndex", 0)
+                    setStore("searchFailed", false)
+                    setStore("searchSavedPrompt", { input: store.prompt.input, parts: [...store.prompt.parts] })
+                  }
+                  return
+                }
+                if (store.searching) {
+                  if (e.name === "escape") {
+                    e.preventDefault()
+                    if (store.searchSavedPrompt) {
+                      input.setText(store.searchSavedPrompt.input)
+                      setStore("prompt", store.searchSavedPrompt)
+                      restoreExtmarksFromParts(store.searchSavedPrompt.parts)
+                    }
+                    setStore("searching", false)
+                    setStore("searchQuery", "")
+                    setStore("searchIndex", 0)
+                    setStore("searchFailed", false)
+                    setStore("searchSavedPrompt", null)
+                    return
+                  }
+                  if (e.name === "return") {
+                    e.preventDefault()
+                    setStore("searching", false)
+                    setStore("searchQuery", "")
+                    setStore("searchIndex", 0)
+                    setStore("searchFailed", false)
+                    setStore("searchSavedPrompt", null)
+                    return
+                  }
+                  if (e.name === "backspace") {
+                    e.preventDefault()
+                    if (store.searchQuery.length > 0) {
+                      const next = store.searchQuery.slice(0, -1)
+                      setStore("searchQuery", next)
+                      if (next) {
+                        const result = history.search(next, 0)
+                        if (result.found) {
+                          setStore("searchIndex", result.index)
+                          setStore("searchFailed", false)
+                          input.setText(result.item.input)
+                          setStore("prompt", result.item)
+                          setStore("mode", result.item.mode ?? "normal")
+                          restoreExtmarksFromParts(result.item.parts)
+                          input.gotoBufferEnd()
+                        } else {
+                          setStore("searchFailed", true)
+                        }
+                      } else {
+                        setStore("searchFailed", false)
+                        if (store.searchSavedPrompt) {
+                          input.setText(store.searchSavedPrompt.input)
+                          setStore("prompt", store.searchSavedPrompt)
+                          restoreExtmarksFromParts(store.searchSavedPrompt.parts)
+                        }
+                      }
+                    }
+                    return
+                  }
+                  if (e.name && e.name.length === 1 && !e.ctrl && !e.meta) {
+                    e.preventDefault()
+                    const next = store.searchQuery + e.name
+                    setStore("searchQuery", next)
+                    const result = history.search(next, 0)
+                    if (result.found) {
+                      setStore("searchIndex", result.index)
+                      setStore("searchFailed", false)
+                      input.setText(result.item.input)
+                      setStore("prompt", result.item)
+                      setStore("mode", result.item.mode ?? "normal")
+                      restoreExtmarksFromParts(result.item.parts)
+                      input.gotoBufferEnd()
+                    } else {
+                      setStore("searchFailed", true)
+                    }
+                    return
+                  }
+                  return
+                }
                 if (store.mode === "normal") autocomplete.onKeyDown(e)
                 if (!autocomplete.visible) {
                   if (
@@ -973,7 +1080,16 @@ export function Prompt(props: PromptProps) {
               cursorColor={theme.text}
               syntaxStyle={syntax()}
             />
-            <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1}>
+            <Show when={store.searching}>
+              <box flexDirection="row" flexShrink={0} paddingTop={1}>
+                <text fg={theme.textMuted}>
+                  {store.searchFailed ? "failing reverse-i-search: " : "reverse-i-search: "}
+                </text>
+                <text fg={theme.text}>{store.searchQuery}</text>
+                <text fg={theme.textMuted}>_</text>
+              </box>
+            </Show>
+            <box flexDirection="row" flexShrink={0} paddingTop={store.searching ? 0 : 1} gap={1}>
               <text fg={highlight()}>
                 {store.mode === "shell" ? "Shell" : Locale.titlecase(local.agent.current().name)}{" "}
               </text>
