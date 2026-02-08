@@ -2,6 +2,8 @@ import { Component, For, Match, Show, Switch } from "solid-js"
 import { FileIcon } from "@opencode-ai/ui/file-icon"
 import { Icon } from "@opencode-ai/ui/icon"
 import { getDirectory, getFilename } from "@opencode-ai/util/path"
+import type { HistorySearchResult } from "./history"
+import { promptTextContent } from "./history"
 
 export type AtOption =
   | { type: "agent"; name: string; display: string }
@@ -18,7 +20,7 @@ export interface SlashCommand {
 }
 
 type PromptPopoverProps = {
-  popover: "at" | "slash" | null
+  popover: "at" | "slash" | "history-search" | null
   setSlashPopoverRef: (el: HTMLDivElement) => void
   atFlat: AtOption[]
   atActive?: string
@@ -31,6 +33,12 @@ type PromptPopoverProps = {
   onSlashSelect: (item: SlashCommand) => void
   commandKeybind: (id: string) => string | undefined
   t: (key: string) => string
+  historySearchQuery: string
+  historySearchResults: HistorySearchResult[]
+  historySearchActiveIndex: number
+  onHistorySearchInput: (query: string) => void
+  onHistorySearchSelect: (result: HistorySearchResult) => void
+  onHistorySearchActiveChange: (index: number) => void
 }
 
 export const PromptPopover: Component<PromptPopoverProps> = (props) => {
@@ -136,6 +144,49 @@ export const PromptPopover: Component<PromptPopoverProps> = (props) => {
                 )}
               </For>
             </Show>
+          </Match>
+          <Match when={props.popover === "history-search"}>
+            <div class="flex flex-col gap-1">
+              <div class="flex items-center gap-2 px-2 py-1">
+                <Icon name="magnifying-glass" size="small" class="text-icon-base shrink-0" />
+                <input
+                  type="text"
+                  value={props.historySearchQuery}
+                  onInput={(e) => props.onHistorySearchInput(e.currentTarget.value)}
+                  placeholder={props.t("prompt.popover.historySearch.placeholder")}
+                  class="flex-1 bg-transparent text-14-regular text-text-strong outline-none placeholder:text-text-weak"
+                  autofocus
+                />
+                <span class="text-11-regular text-text-subtle shrink-0">Ctrl+R</span>
+              </div>
+              <div class="border-t border-border-base" />
+              <Show
+                when={props.historySearchResults.length > 0}
+                fallback={
+                  <div class="text-text-weak px-2 py-1">{props.t("prompt.popover.historySearch.empty")}</div>
+                }
+              >
+                <For each={props.historySearchResults.slice(0, 20)}>
+                  {(result, idx) => {
+                    const text = promptTextContent(result.prompt).trim()
+                    const preview = text.length > 120 ? text.slice(0, 120) + "..." : text
+                    return (
+                      <button
+                        classList={{
+                          "w-full flex items-center gap-2 rounded-md px-2 py-1 text-left": true,
+                          "bg-surface-raised-base-hover": props.historySearchActiveIndex === idx(),
+                        }}
+                        onClick={() => props.onHistorySearchSelect(result)}
+                        onMouseEnter={() => props.onHistorySearchActiveChange(idx())}
+                      >
+                        <Icon name="align-right" size="small" class="text-icon-base shrink-0" />
+                        <span class="text-14-regular text-text-strong truncate">{preview}</span>
+                      </button>
+                    )
+                  }}
+                </For>
+              </Show>
+            </div>
           </Match>
         </Switch>
       </div>

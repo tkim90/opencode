@@ -210,6 +210,8 @@ export const dict = {
 
   "prompt.popover.emptyResults": "Ingen matchende resultater",
   "prompt.popover.emptyCommands": "Ingen matchende kommandoer",
+  "prompt.popover.historySearch.placeholder": "Søg i prompthistorik...",
+  "prompt.popover.historySearch.empty": "Ingen matchende historik",
   "prompt.dropzone.label": "Slip billeder eller PDF'er her",
   "prompt.slash.badge.custom": "brugerdefineret",
   "prompt.slash.badge.skill": "skill",

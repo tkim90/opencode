@@ -251,6 +251,8 @@ export const dict = {
 
   "prompt.popover.emptyResults": "没有匹配的结果",
   "prompt.popover.emptyCommands": "没有匹配的命令",
+  "prompt.popover.historySearch.placeholder": "搜索提示历史记录...",
+  "prompt.popover.historySearch.empty": "没有匹配的历史记录",
   "prompt.dropzone.label": "将图片或 PDF 拖到这里",
   "prompt.slash.badge.custom": "自定义",
   "prompt.slash.badge.skill": "技能",

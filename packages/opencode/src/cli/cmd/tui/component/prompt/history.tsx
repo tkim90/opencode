@@ -81,6 +81,18 @@ export const { use: usePromptHistory, provider: PromptHistoryProvider } = create
           }
         return store.history.at(store.index)
       },
+      search(query: string, startIndex?: number) {
+        if (!store.history.length) return undefined
+        const lower = query.toLowerCase()
+        const start = startIndex ?? store.history.length
+        for (let i = start - 1; i >= 0; i--) {
+          const item = store.history[i]
+          if (item && item.input.toLowerCase().includes(lower)) {
+            return { item, index: i }
+          }
+        }
+        return undefined
+      },
       append(item: PromptInfo) {
         const entry = clone(item)
         let trimmed = false

@@ -248,6 +248,8 @@ export const dict = {
 
   "prompt.popover.emptyResults": "沒有符合的結果",
   "prompt.popover.emptyCommands": "沒有符合的命令",
+  "prompt.popover.historySearch.placeholder": "搜尋提示歷史記錄...",
+  "prompt.popover.historySearch.empty": "沒有符合的歷史記錄",
   "prompt.dropzone.label": "將圖片或 PDF 拖到這裡",
   "prompt.slash.badge.custom": "自訂",
   "prompt.slash.badge.skill": "技能",

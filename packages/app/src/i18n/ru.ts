@@ -210,6 +210,8 @@ export const dict = {
 
   "prompt.popover.emptyResults": "Нет совпадений",
   "prompt.popover.emptyCommands": "Нет совпадающих команд",
+  "prompt.popover.historySearch.placeholder": "Поиск в истории промптов...",
+  "prompt.popover.historySearch.empty": "Нет совпадений в истории",
   "prompt.dropzone.label": "Перетащите изображения или PDF сюда",
   "prompt.slash.badge.custom": "своё",
   "prompt.slash.badge.skill": "навык",

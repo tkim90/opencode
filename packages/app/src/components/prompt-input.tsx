@@ -37,7 +37,7 @@ import { usePermission } from "@/context/permission"
 import { useLanguage } from "@/context/language"
 import { createTextFragment, getCursorPosition, setCursorPosition, setRangeEdge } from "./prompt-input/editor-dom"
 import { createPromptAttachments, ACCEPTED_FILE_TYPES } from "./prompt-input/attachments"
-import { navigatePromptHistory, prependHistoryEntry, promptLength } from "./prompt-input/history"
+import { navigatePromptHistory, prependHistoryEntry, promptLength, searchPromptHistory, promptTextContent } from "./prompt-input/history"
 import { createPromptSubmit } from "./prompt-input/submit"
 import { PromptPopover, type AtOption, type SlashCommand } from "./prompt-input/slash-popover"
 import { PromptContextItems } from "./prompt-input/context-items"
@@ -201,13 +201,15 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   )
 
   const [store, setStore] = createStore<{
-    popover: "at" | "slash" | null
+    popover: "at" | "slash" | "history-search" | null
     historyIndex: number
     savedPrompt: Prompt | null
     placeholder: number
     dragging: boolean
     mode: "normal" | "shell"
     applyingHistory: boolean
+    historySearchQuery: string
+    historySearchActiveIndex: number
   }>({
     popover: null,
     historyIndex: -1,
@@ -216,6 +218,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     dragging: false,
     mode: "normal",
     applyingHistory: false,
+    historySearchQuery: "",
+    historySearchActiveIndex: 0,
   })
   const placeholder = createMemo(() =>
     promptPlaceholder({
@@ -756,6 +760,38 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return true
   }
 
+  const historySearchResults = createMemo(() => {
+    const entries = store.mode === "shell" ? shellHistory.entries : history.entries
+    return searchPromptHistory(entries, store.historySearchQuery)
+  })
+
+  const openHistorySearch = () => {
+    setStore("historySearchQuery", "")
+    setStore("historySearchActiveIndex", 0)
+    setStore("popover", "history-search")
+  }
+
+  const closeHistorySearch = () => {
+    setStore("popover", null)
+    setStore("historySearchQuery", "")
+    setStore("historySearchActiveIndex", 0)
+  }
+
+  const selectHistorySearchEntry = () => {
+    const results = historySearchResults()
+    const idx = store.historySearchActiveIndex
+    if (idx >= 0 && idx < results.length) {
+      applyHistoryPrompt(results[idx].prompt, "end")
+    }
+    closeHistorySearch()
+  }
+
+  const cycleHistorySearch = () => {
+    const results = historySearchResults()
+    if (results.length === 0) return
+    setStore("historySearchActiveIndex", (prev) => (prev + 1) % results.length)
+  }
+
   const { addImageAttachment, removeImageAttachment, handlePaste } = createPromptAttachments({
     editor: () => editorRef,
     isFocused,
@@ -840,6 +876,44 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     }
 
     const ctrl = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+
+    if (ctrl && event.key === "r") {
+      event.preventDefault()
+      if (store.popover === "history-search") {
+        cycleHistorySearch()
+      } else {
+        openHistorySearch()
+      }
+      return
+    }
+
+    if (store.popover === "history-search") {
+      if (event.key === "Enter") {
+        event.preventDefault()
+        selectHistorySearchEntry()
+        return
+      }
+      if (event.key === "Escape") {
+        event.preventDefault()
+        closeHistorySearch()
+        return
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault()
+        const results = historySearchResults()
+        if (results.length === 0) return
+        setStore("historySearchActiveIndex", (prev) => (prev - 1 + results.length) % results.length)
+        return
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault()
+        const results = historySearchResults()
+        if (results.length === 0) return
+        setStore("historySearchActiveIndex", (prev) => (prev + 1) % results.length)
+        return
+      }
+      return
+    }
 
     if (store.popover) {
       if (event.key === "Tab") {
@@ -939,6 +1013,18 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         onSlashSelect={handleSlashSelect}
         commandKeybind={command.keybind}
         t={(key) => language.t(key as Parameters<typeof language.t>[0])}
+        historySearchQuery={store.historySearchQuery}
+        historySearchResults={historySearchResults()}
+        historySearchActiveIndex={store.historySearchActiveIndex}
+        onHistorySearchInput={(query) => {
+          setStore("historySearchQuery", query)
+          setStore("historySearchActiveIndex", 0)
+        }}
+        onHistorySearchSelect={(result) => {
+          applyHistoryPrompt(result.prompt, "end")
+          closeHistorySearch()
+        }}
+        onHistorySearchActiveChange={(index) => setStore("historySearchActiveIndex", index)}
       />
       <form
         onSubmit={handleSubmit}

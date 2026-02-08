@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Prompt } from "@/context/prompt"
-import { clonePromptParts, navigatePromptHistory, prependHistoryEntry, promptLength } from "./history"
+import { clonePromptParts, navigatePromptHistory, prependHistoryEntry, promptLength, searchPromptHistory } from "./history"
 
 const DEFAULT_PROMPT: Prompt = [{ type: "text", content: "", start: 0, end: 0 }]
 
@@ -65,5 +65,40 @@ describe("prompt-input history", () => {
     copy[1].selection!.startLine = 9
     if (original[1]?.type !== "file") throw new Error("expected file")
     expect(original[1].selection?.startLine).toBe(1)
+  })
+
+  test("searchPromptHistory returns all entries when query is empty", () => {
+    const entries = [text("hello"), text("world"), text("foo")]
+    const results = searchPromptHistory(entries, "")
+    expect(results).toHaveLength(3)
+    expect(results[0].index).toBe(0)
+    expect(results[1].index).toBe(1)
+    expect(results[2].index).toBe(2)
+  })
+
+  test("searchPromptHistory filters by case-insensitive substring match", () => {
+    const entries = [text("Hello World"), text("goodbye"), text("HELLO again")]
+    const results = searchPromptHistory(entries, "hello")
+    expect(results).toHaveLength(2)
+    expect(results[0].index).toBe(0)
+    expect(results[1].index).toBe(2)
+  })
+
+  test("searchPromptHistory returns empty array when no matches", () => {
+    const entries = [text("hello"), text("world")]
+    const results = searchPromptHistory(entries, "xyz")
+    expect(results).toHaveLength(0)
+  })
+
+  test("searchPromptHistory matches against text content of multi-part prompts", () => {
+    const multi: Prompt = [
+      { type: "text", content: "fix ", start: 0, end: 4 },
+      { type: "file", path: "src/a.ts", content: "@src/a.ts", start: 4, end: 13 },
+      { type: "text", content: " please", start: 13, end: 20 },
+    ]
+    const entries = [multi, text("unrelated")]
+    const results = searchPromptHistory(entries, "please")
+    expect(results).toHaveLength(1)
+    expect(results[0].index).toBe(0)
   })
 })

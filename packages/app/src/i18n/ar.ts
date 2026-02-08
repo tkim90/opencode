@@ -210,6 +210,8 @@ export const dict = {
 
   "prompt.popover.emptyResults": "لا توجد نتائج مطابقة",
   "prompt.popover.emptyCommands": "لا توجد أوامر مطابقة",
+  "prompt.popover.historySearch.placeholder": "البحث في سجل الأوامر...",
+  "prompt.popover.historySearch.empty": "لا يوجد سجل مطابق",
   "prompt.dropzone.label": "أفلت الصور أو ملفات PDF هنا",
   "prompt.slash.badge.custom": "مخصص",
   "prompt.slash.badge.skill": "مهارة",

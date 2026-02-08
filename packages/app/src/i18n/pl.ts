@@ -210,6 +210,8 @@ export const dict = {
 
   "prompt.popover.emptyResults": "Brak pasujących wyników",
   "prompt.popover.emptyCommands": "Brak pasujących poleceń",
+  "prompt.popover.historySearch.placeholder": "Szukaj w historii promptów...",
+  "prompt.popover.historySearch.empty": "Brak pasującej historii",
   "prompt.dropzone.label": "Upuść obrazy lub pliki PDF tutaj",
   "prompt.slash.badge.custom": "własne",
   "prompt.slash.badge.skill": "skill",

@@ -209,6 +209,8 @@ export const dict = {
 
   "prompt.popover.emptyResults": "一致する結果がありません",
   "prompt.popover.emptyCommands": "一致するコマンドがありません",
+  "prompt.popover.historySearch.placeholder": "プロンプト履歴を検索...",
+  "prompt.popover.historySearch.empty": "一致する履歴がありません",
   "prompt.dropzone.label": "画像またはPDFをここにドロップ",
   "prompt.slash.badge.custom": "カスタム",
   "prompt.slash.badge.skill": "スキル",

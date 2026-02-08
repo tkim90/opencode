@@ -215,6 +215,8 @@ export const dict = {
 
   "prompt.popover.emptyResults": "ไม่พบผลลัพธ์ที่ตรงกัน",
   "prompt.popover.emptyCommands": "ไม่พบคำสั่งที่ตรงกัน",
+  "prompt.popover.historySearch.placeholder": "ค้นหาประวัติพรอมต์...",
+  "prompt.popover.historySearch.empty": "ไม่พบประวัติที่ตรงกัน",
   "prompt.dropzone.label": "วางรูปภาพหรือ PDF ที่นี่",
   "prompt.slash.badge.custom": "กำหนดเอง",
   "prompt.slash.badge.skill": "skill",

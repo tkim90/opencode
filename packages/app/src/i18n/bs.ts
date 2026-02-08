@@ -218,6 +218,8 @@ export const dict = {
 
   "prompt.popover.emptyResults": "Nema rezultata",
   "prompt.popover.emptyCommands": "Nema komandi",
+  "prompt.popover.historySearch.placeholder": "Pretraži historiju promptova...",
+  "prompt.popover.historySearch.empty": "Nema odgovarajuće historije",
   "prompt.dropzone.label": "Spusti slike ili PDF-ove ovdje",
   "prompt.slash.badge.custom": "prilagođeno",
   "prompt.slash.badge.skill": "skill",

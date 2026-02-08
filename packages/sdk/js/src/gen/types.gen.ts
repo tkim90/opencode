@@ -955,6 +955,10 @@ export type KeybindsConfig = {
    */
   history_next?: string
   /**
+   * Search prompt history
+   */
+  history_search?: string
+  /**
    * Next child session
    */
   session_child_cycle?: string

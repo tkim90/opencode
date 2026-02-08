@@ -123,6 +123,7 @@ export function Prompt(props: PromptProps) {
     extmarkToPartIndex: Map<number, number>
     interrupt: number
     placeholder: number
+    historySearchIndex: number | undefined
   }>({
     placeholder: Math.floor(Math.random() * PLACEHOLDERS.length),
     prompt: {
@@ -132,6 +133,7 @@ export function Prompt(props: PromptProps) {
     mode: "normal",
     extmarkToPartIndex: new Map(),
     interrupt: 0,
+    historySearchIndex: undefined,
   })
 
   // Initialize agent/model/variant from last user message when session changes
@@ -860,6 +862,32 @@ export function Prompt(props: PromptProps) {
                     e.preventDefault()
                     return
                   }
+                }
+                if (keybind.match("history_search", e)) {
+                  const query = input.plainText
+                  if (query.length > 0) {
+                    const result = history.search(query, store.historySearchIndex)
+                    if (result) {
+                      input.setText(result.item.input)
+                      setStore("prompt", result.item)
+                      setStore("mode", result.item.mode ?? "normal")
+                      restoreExtmarksFromParts(result.item.parts)
+                      setStore("historySearchIndex", result.index)
+                      input.cursorOffset = result.item.input.length
+                    }
+                  } else {
+                    const result = history.search("", store.historySearchIndex)
+                    if (result) {
+                      input.setText(result.item.input)
+                      setStore("prompt", result.item)
+                      setStore("mode", result.item.mode ?? "normal")
+                      restoreExtmarksFromParts(result.item.parts)
+                      setStore("historySearchIndex", result.index)
+                      input.cursorOffset = result.item.input.length
+                    }
+                  }
+                  e.preventDefault()
+                  return
                 }
                 if (store.mode === "normal") autocomplete.onKeyDown(e)
                 if (!autocomplete.visible) {

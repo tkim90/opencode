@@ -255,6 +255,8 @@ export const dict = {
 
   "prompt.popover.emptyResults": "No matching results",
   "prompt.popover.emptyCommands": "No matching commands",
+  "prompt.popover.historySearch.placeholder": "Search prompt history...",
+  "prompt.popover.historySearch.empty": "No matching history",
   "prompt.dropzone.label": "Drop images or PDFs here",
   "prompt.slash.badge.custom": "custom",
   "prompt.slash.badge.skill": "skill",

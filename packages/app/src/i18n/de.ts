@@ -252,6 +252,8 @@ export const dict = {
 
   "prompt.popover.emptyResults": "Keine passenden Ergebnisse",
   "prompt.popover.emptyCommands": "Keine passenden Befehle",
+  "prompt.popover.historySearch.placeholder": "Prompt-Verlauf durchsuchen...",
+  "prompt.popover.historySearch.empty": "Kein passender Verlauf",
   "prompt.dropzone.label": "Bilder oder PDFs hier ablegen",
   "prompt.slash.badge.custom": "benutzerdefiniert",
   "prompt.slash.badge.skill": "skill",
