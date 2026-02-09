@@ -123,6 +123,13 @@ export function Prompt(props: PromptProps) {
     extmarkToPartIndex: Map<number, number>
     interrupt: number
     placeholder: number
+    reverseSearch: {
+      active: boolean
+      query: string
+      matchIndex: number
+      matches: number[]
+      savedInput: string
+    }
   }>({
     placeholder: Math.floor(Math.random() * PLACEHOLDERS.length),
     prompt: {
@@ -132,6 +139,13 @@ export function Prompt(props: PromptProps) {
     mode: "normal",
     extmarkToPartIndex: new Map(),
     interrupt: 0,
+    reverseSearch: {
+      active: false,
+      query: "",
+      matchIndex: 0,
+      matches: [],
+      savedInput: "",
+    },
   })
 
   // Initialize agent/model/variant from last user message when session changes
@@ -863,6 +877,80 @@ export function Prompt(props: PromptProps) {
                 }
                 if (store.mode === "normal") autocomplete.onKeyDown(e)
                 if (!autocomplete.visible) {
+                  if (keybind.match("history_search", e)) {
+                    if (!store.reverseSearch.active) {
+                      setStore("reverseSearch", {
+                        active: true,
+                        query: "",
+                        matchIndex: 0,
+                        matches: [],
+                        savedInput: input.plainText,
+                      })
+                    } else {
+                      const rs = store.reverseSearch
+                      if (rs.matches.length > 0) {
+                        const next = (rs.matchIndex + 1) % rs.matches.length
+                        const entry = history.store.history[rs.matches[next]]
+                        if (entry) {
+                          input.setText(entry.input)
+                          setStore("prompt", entry)
+                          setStore("reverseSearch", "matchIndex", next)
+                        }
+                      }
+                    }
+                    e.preventDefault()
+                    return
+                  }
+                  if (store.reverseSearch.active) {
+                    if (e.name === "escape") {
+                      input.setText(store.reverseSearch.savedInput)
+                      setStore("prompt", "input", store.reverseSearch.savedInput)
+                      setStore("reverseSearch", { active: false, query: "", matchIndex: 0, matches: [], savedInput: "" })
+                      e.preventDefault()
+                      return
+                    }
+                    if (e.name === "return") {
+                      setStore("reverseSearch", { active: false, query: "", matchIndex: 0, matches: [], savedInput: "" })
+                      e.preventDefault()
+                      return
+                    }
+                    if (e.name === "backspace") {
+                      const q = store.reverseSearch.query
+                      if (q.length > 0) {
+                        const newQuery = q.slice(0, -1)
+                        const matches = history.search(newQuery)
+                        setStore("reverseSearch", { active: true, query: newQuery, matchIndex: 0, matches, savedInput: store.reverseSearch.savedInput })
+                        if (matches.length > 0) {
+                          const entry = history.store.history[matches[0]]
+                          if (entry) {
+                            input.setText(entry.input)
+                            setStore("prompt", entry)
+                          }
+                        }
+                      } else {
+                        input.setText(store.reverseSearch.savedInput)
+                        setStore("prompt", "input", store.reverseSearch.savedInput)
+                        setStore("reverseSearch", { active: false, query: "", matchIndex: 0, matches: [], savedInput: "" })
+                      }
+                      e.preventDefault()
+                      return
+                    }
+                    if (e.name && e.name.length === 1 && !e.ctrl && !e.meta) {
+                      const newQuery = store.reverseSearch.query + e.name
+                      const matches = history.search(newQuery)
+                      setStore("reverseSearch", { active: true, query: newQuery, matchIndex: 0, matches, savedInput: store.reverseSearch.savedInput })
+                      if (matches.length > 0) {
+                        const entry = history.store.history[matches[0]]
+                        if (entry) {
+                          input.setText(entry.input)
+                          setStore("prompt", entry)
+                        }
+                      }
+                      e.preventDefault()
+                      return
+                    }
+                    setStore("reverseSearch", { active: false, query: "", matchIndex: 0, matches: [], savedInput: "" })
+                  }
                   if (
                     (keybind.match("history_previous", e) && input.cursorOffset === 0) ||
                     (keybind.match("history_next", e) && input.cursorOffset === input.plainText.length)
@@ -973,6 +1061,23 @@ export function Prompt(props: PromptProps) {
               cursorColor={theme.text}
               syntaxStyle={syntax()}
             />
+            <Show when={store.reverseSearch.active}>
+              <box flexDirection="row" flexShrink={0} paddingTop={1}>
+                <text fg={theme.textMuted}>
+                  {store.reverseSearch.matches.length === 0 && store.reverseSearch.query
+                    ? "(failing reverse-i-search)"
+                    : "(reverse-i-search)"}
+                  {`'`}
+                </text>
+                <text fg={theme.text}>{store.reverseSearch.query}</text>
+                <text fg={theme.textMuted}>
+                  {`'`}
+                  <Show when={store.reverseSearch.matches.length > 1}>
+                    {` (${store.reverseSearch.matchIndex + 1}/${store.reverseSearch.matches.length})`}
+                  </Show>
+                </text>
+              </box>
+            </Show>
             <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1}>
               <text fg={highlight()}>
                 {store.mode === "shell" ? "Shell" : Locale.titlecase(local.agent.current().name)}{" "}

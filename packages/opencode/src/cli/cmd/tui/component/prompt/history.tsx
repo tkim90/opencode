@@ -61,6 +61,20 @@ export const { use: usePromptHistory, provider: PromptHistoryProvider } = create
     })
 
     return {
+      get store() {
+        return store
+      },
+      search(query: string): number[] {
+        if (!query) return []
+        const lower = query.toLowerCase()
+        const indices: number[] = []
+        for (let i = store.history.length - 1; i >= 0; i--) {
+          if (store.history[i].input.toLowerCase().includes(lower)) {
+            indices.push(i)
+          }
+        }
+        return indices
+      },
       move(direction: 1 | -1, input: string) {
         if (!store.history.length) return undefined
         const current = store.history.at(store.index)

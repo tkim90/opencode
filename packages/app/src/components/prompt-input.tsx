@@ -37,7 +37,7 @@ import { usePermission } from "@/context/permission"
 import { useLanguage } from "@/context/language"
 import { createTextFragment, getCursorPosition, setCursorPosition, setRangeEdge } from "./prompt-input/editor-dom"
 import { createPromptAttachments, ACCEPTED_FILE_TYPES } from "./prompt-input/attachments"
-import { navigatePromptHistory, prependHistoryEntry, promptLength } from "./prompt-input/history"
+import { navigatePromptHistory, prependHistoryEntry, promptLength, searchPromptHistory, promptText } from "./prompt-input/history"
 import { createPromptSubmit } from "./prompt-input/submit"
 import { PromptPopover, type AtOption, type SlashCommand } from "./prompt-input/slash-popover"
 import { PromptContextItems } from "./prompt-input/context-items"
@@ -208,6 +208,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     dragging: boolean
     mode: "normal" | "shell"
     applyingHistory: boolean
+    reverseSearch: {
+      active: boolean
+      query: string
+      matchIndex: number
+      matches: number[]
+    }
   }>({
     popover: null,
     historyIndex: -1,
@@ -216,6 +222,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     dragging: false,
     mode: "normal",
     applyingHistory: false,
+    reverseSearch: {
+      active: false,
+      query: "",
+      matchIndex: 0,
+      matches: [],
+    },
   })
   const placeholder = createMemo(() =>
     promptPlaceholder({
@@ -756,6 +768,46 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return true
   }
 
+  const exitReverseSearch = () => {
+    setStore("reverseSearch", { active: false, query: "", matchIndex: 0, matches: [] })
+  }
+
+  const updateReverseSearch = (query: string) => {
+    const entries = store.mode === "shell" ? shellHistory.entries : history.entries
+    const matches = searchPromptHistory(entries, query)
+    setStore("reverseSearch", { active: true, query, matchIndex: 0, matches })
+    if (matches.length > 0) {
+      const idx = matches[0]
+      applyHistoryPrompt(entries[idx], "end")
+      setStore("historyIndex", idx)
+    }
+  }
+
+  const cycleReverseSearch = () => {
+    const rs = store.reverseSearch
+    if (rs.matches.length === 0) return
+    const next = (rs.matchIndex + 1) % rs.matches.length
+    const entries = store.mode === "shell" ? shellHistory.entries : history.entries
+    const idx = rs.matches[next]
+    setStore("reverseSearch", "matchIndex", next)
+    applyHistoryPrompt(entries[idx], "end")
+    setStore("historyIndex", idx)
+  }
+
+  const acceptReverseSearch = () => {
+    exitReverseSearch()
+  }
+
+  const cancelReverseSearch = () => {
+    const saved = store.savedPrompt
+    exitReverseSearch()
+    setStore("historyIndex", -1)
+    if (saved) {
+      setStore("savedPrompt", null)
+      applyHistoryPrompt(saved, "end")
+    }
+  }
+
   const { addImageAttachment, removeImageAttachment, handlePaste } = createPromptAttachments({
     editor: () => editorRef,
     isFocused,
@@ -786,6 +838,45 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   })
 
   const handleKeyDown = (event: KeyboardEvent) => {
+    if (store.reverseSearch.active) {
+      const ctrl = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+      if (ctrl && event.key === "r") {
+        cycleReverseSearch()
+        event.preventDefault()
+        return
+      }
+      if (event.key === "Escape") {
+        cancelReverseSearch()
+        event.preventDefault()
+        return
+      }
+      if (event.key === "Enter") {
+        acceptReverseSearch()
+        event.preventDefault()
+        return
+      }
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        acceptReverseSearch()
+        return
+      }
+      if (event.key === "Backspace") {
+        const q = store.reverseSearch.query
+        if (q.length > 0) {
+          updateReverseSearch(q.slice(0, -1))
+        } else {
+          cancelReverseSearch()
+        }
+        event.preventDefault()
+        return
+      }
+      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        updateReverseSearch(store.reverseSearch.query + event.key)
+        event.preventDefault()
+        return
+      }
+      return
+    }
+
     if (event.key === "Backspace") {
       const selection = window.getSelection()
       if (selection && selection.isCollapsed) {
@@ -861,6 +952,18 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         event.preventDefault()
         return
       }
+    }
+
+    if (ctrl && event.key === "r") {
+      if (!store.reverseSearch.active) {
+        setStore("popover", null)
+        if (store.savedPrompt === null) {
+          setStore("savedPrompt", prompt.current())
+        }
+        setStore("reverseSearch", { active: true, query: "", matchIndex: 0, matches: [] })
+      }
+      event.preventDefault()
+      return
     }
 
     if (ctrl && event.code === "KeyG") {
@@ -1002,6 +1105,21 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             </div>
           </Show>
         </div>
+        <Show when={store.reverseSearch.active}>
+          <div class="px-3 py-1.5 text-12-regular text-text-weak border-t border-border-base flex items-center gap-1 font-mono truncate">
+            <span class="shrink-0">
+              {store.reverseSearch.matches.length === 0 && store.reverseSearch.query
+                ? language.t("prompt.reverseSearch.failing")
+                : language.t("prompt.reverseSearch.label")}
+            </span>
+            <span class="text-text-strong">'{store.reverseSearch.query}'</span>
+            <Show when={store.reverseSearch.matches.length > 1}>
+              <span class="text-text-weak shrink-0">
+                ({store.reverseSearch.matchIndex + 1}/{store.reverseSearch.matches.length})
+              </span>
+            </Show>
+          </div>
+        </Show>
         <div class="relative p-3 flex items-center justify-between gap-2">
           <div class="flex items-center gap-2 min-w-0 flex-1">
             <Switch>

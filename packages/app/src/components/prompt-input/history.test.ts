@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Prompt } from "@/context/prompt"
-import { clonePromptParts, navigatePromptHistory, prependHistoryEntry, promptLength } from "./history"
+import { clonePromptParts, navigatePromptHistory, prependHistoryEntry, promptLength, searchPromptHistory, promptText } from "./history"
 
 const DEFAULT_PROMPT: Prompt = [{ type: "text", content: "", start: 0, end: 0 }]
 
@@ -43,6 +43,27 @@ describe("prompt-input history", () => {
     if (!down.handled) throw new Error("expected handled")
     expect(down.historyIndex).toBe(-1)
     expect(down.prompt[0]?.type === "text" ? down.prompt[0].content : "").toBe("draft")
+  })
+
+  test("searchPromptHistory returns matching indices case-insensitively", () => {
+    const entries = [text("Fix broken tests"), text("Add unit tests"), text("Deploy to production"), text("fix lint errors")]
+    const matches = searchPromptHistory(entries, "fix")
+    expect(matches).toEqual([0, 3])
+  })
+
+  test("searchPromptHistory returns empty for no matches", () => {
+    const entries = [text("hello"), text("world")]
+    expect(searchPromptHistory(entries, "xyz")).toEqual([])
+  })
+
+  test("searchPromptHistory returns empty for empty query", () => {
+    const entries = [text("hello")]
+    expect(searchPromptHistory(entries, "")).toEqual([])
+  })
+
+  test("promptText extracts text content from prompt parts", () => {
+    const prompt = [text("hello ")[0], { type: "file" as const, path: "a.ts", content: "@a.ts", start: 6, end: 11 }, { type: "text" as const, content: " world", start: 11, end: 17 }]
+    expect(promptText(prompt)).toBe("hello @a.ts world")
   })
 
   test("helpers clone prompt and count text content length", () => {

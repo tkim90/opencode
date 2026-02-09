@@ -253,6 +253,9 @@ export const dict = {
   "prompt.example.24": "Create a CLI command for...",
   "prompt.example.25": "How do environment variables work here?",
 
+  "prompt.reverseSearch.label": "(reverse-i-search)",
+  "prompt.reverseSearch.failing": "(failing reverse-i-search)",
+
   "prompt.popover.emptyResults": "No matching results",
   "prompt.popover.emptyCommands": "No matching commands",
   "prompt.dropzone.label": "Drop images or PDFs here",
